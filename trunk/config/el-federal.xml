@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<site description="Revista ElFederal">
+    <id>2</id>
+    <password algorithm="sha1">nahasapeemapetilon-revistalelfederal-123456789123456789</password>
+
+    <defaultImage>default.jpg</defaultImage>
+    <assetsFolder>el-federal</assetsFolder>
+    <sizes>
+        <size>686x343</size>
+        <size>334x167</size>
+        <size>238x119</size>
+        <size>467x234</size>
+        <size>201x101</size>
+    </sizes>
+</site>

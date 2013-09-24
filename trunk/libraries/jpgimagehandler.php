@@ -118,4 +118,14 @@ class JPGImageHandler
 
         return array($rWidth, $rHeight);
     }
+
+    public static function getImageConverted($binary, $from, $to)
+    {
+        ob_start();
+        $img = imagecreatefromstring($binary);
+        imagejpeg($img);
+        imagedestroy($img);
+
+        return ob_get_clean();
+    }
 }

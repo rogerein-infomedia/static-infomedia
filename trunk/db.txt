@@ -1,14 +1,14 @@
 db.imagen.insert({
-    "owner": new DBRef("remoteUser", 1),
+    "owner": "0",
     "refId": 2121
 });
-db.imagen.ensureIndex({"owner": 1, "refId": 1});
+db.imagen.ensureIndex({"owner": 1, "refId": -1});
 db.imagen.remove({});
 
 db.asset.insert({
-    "owner": new DBRef("remoteUser", 1),
+    "owner": "0",
     "refId": 2121,
     "type": "saraza"
 });
-db.asset.ensureIndex({"owner": 1, "refId": 1, "type": 1});
+db.asset.ensureIndex({"owner": 1, "type": 1, "refId": -1});
 db.asset.remove({});

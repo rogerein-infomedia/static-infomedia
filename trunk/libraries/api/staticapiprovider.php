@@ -11,13 +11,20 @@ class API_StaticApiProvider
      */
     private $_MongoDBInstance;
 
+    /**
+     * @var Config_OwnerConfig
+     */
     private $_User;
+
+    private $_RequestID;
+
     const PUBLIC_KEY = 'cbeca29d4d7614d4ccf095c187ed2716e2f98eef';
     const ORIGINALS_FOLDER = 'originals';
 
     private function __construct()
     {
         $this->_MongoDBInstance = MongoDBWrapper::getMongoDBInstance();
+        $this->_RequestID = substr(md5(uniqid()), 0, 5);
     }
 
     public static function getInstance()
@@ -32,26 +39,27 @@ class API_StaticApiProvider
     {
         if(isset($_POST['hash']))
         {
-            $tokens = explode('_', $_POST['hash']);
+            $fragments = explode('@', $_POST['hash']);
 
-            if(count($tokens) == 2)
+            if(count($fragments) == 2)
             {
-                $user = $this->_MongoDBInstance->remoteUser->findOne(array('_id' => new MongoId($tokens[0])));
-                if($user)
+                $owner = Config_OwnerConfig::load($fragments[0]);
+
+                if($owner && $owner->isValidHash($fragments[1], self::PUBLIC_KEY))
                 {
-                    if($tokens[1] != sha1($user['username'] . '_' . $user['password'] . '_' . self::PUBLIC_KEY))
-                        throw new Exception($this->authError());
-                    else
-                        $this->_User = $user;
+                    $this->logRequest('auth', 'SUCCESS', 'Hash: ' . $_POST['hash']);
+                    $this->_User = $owner;
                 }
                 else
                 {
+                    $this->logRequest('auth', 'FAIL', 'HashValidation not passed (' . $_POST['hash'] . ')');
                     throw new Exception($this->authError());
                 }
             }
         }
         else
         {
+            $this->logRequest('auth', 'FAIL', 'Hash: ' . $_POST['hash']);
             throw new Exception($this->invalidHashError());
         }
     }
@@ -63,7 +71,7 @@ class API_StaticApiProvider
     //
     public function error($code, $message)
     {
-        return $this->message($code, $message, true);
+        return $this->message($code, $message, null, true);
     }
 
     private function invalidHashError()
@@ -108,7 +116,7 @@ class API_StaticApiProvider
         // User Validation
         $this->validateUser();
 
-        if(isset($_POST['binary']) && isset($_POST['localId']) && isset($_POST['title']))
+        if(isset($_POST['binary']) && isset($_POST['localId']) && !empty($_POST['localId']) && isset($_POST['title']))
         {
             // Media Type Validation
             $mimeType = $this->getBufferMimeType($_POST['binary']);
@@ -116,12 +124,12 @@ class API_StaticApiProvider
 
             // Image Existence Check
             $image = MongoDBWrapper::getMongoDBInstance()->image->findOne(array(
-                'owner' => MongoDBRef::create('remoteUser', new MongoId($this->_User['_id']->{'$id'})),
-                'refId' => $_POST['localId']
+                'owner' => $this->_User->id,
+                'refId' => $_POST['localId'],
             ));
 
             // Store Path Calculation
-            $relativeStorePath = str_replace(':owner', $this->_User['ownerName'], STORE_RELATIVE_PATH);
+            $relativeStorePath = str_replace(':owner', $this->_User->username, STORE_RELATIVE_PATH);
             $absolutStorePath = ASSETS_PATH . $relativeStorePath;
 
             if($image)
@@ -133,34 +141,93 @@ class API_StaticApiProvider
                     @unlink(ASSETS_PATH . $thumb['path']);
                 }
 
+                $this->logRequest('action', 'IMAGE - DELETED_4_REPLACEMENT', $image);
                 $this->_MongoDBInstance->image->remove(array('_id' => new MongoId($image['_id'])));
             }
 
             // Save
-            $cacheKey = self::getCacheKeyForImage(true, $_POST['localId'], $_POST['title']);
-            $imageStorePath = $relativeStorePath . FileSystemCache::getInstance()->store($cacheKey, $absolutStorePath , $_POST['binary']);
-            $this->_MongoDBInstance->image->insert(array(
-                'owner' => MongoDBRef::create('remoteUser', $this->_User['_id']),
+            $jpegMimeType = 'image/jpeg';
+            if($mimeType == $jpegMimeType)
+                $binary = $_POST['binary'];
+            else
+                $binary = JPGImageHandler::getImageConverted($_POST['binary'], $mimeType, $jpegMimeType);
+
+            $cacheKey = self::getCacheKeyForImage(true, $_POST['localId'], self::getSEOString($_POST['title']));
+            $imageStorePath = $relativeStorePath . FileSystemCache::getInstance()->store($cacheKey, $absolutStorePath , $binary);
+
+            $mongoImage = array(
+                'title' => $_POST['title'],
+                'owner' => $this->_User->id,
                 'created' => new MongoDate(),
                 'path' => $imageStorePath,
                 'thumbs' => array(),
-                'refId' => $_POST['localId'],
+                'refId' => (int)$_POST['localId'],
                 'mimeType' => $mimeType,
+            );
+            $this->_MongoDBInstance->image->insert($mongoImage, array(
+                'fsync' => true
             ));
+            $this->logRequest('action', 'IMAGE - UPLOADED', $mongoImage);
 
             JPGImageHandler::compressImage($absolutStorePath);
 
             $url = ConfigHandler::item('routes');
-            return $this->message(200, 'Image Uploaded', str_replace(
-                array(':owner', ':id', ':title'),
-                array($this->_User['ownerName'], $_POST['localId'], self::getSEOString($_POST['title'])),
-                $url['image']
+            return $this->message(200, 'Image Uploaded', array(
+                'sId' => $mongoImage['_id']->{'$id'},
+                'permalink' => str_replace(
+                    array(':owner', ':id', ':title'),
+                    array($this->_User->username, $_POST['localId'], self::getSEOString($_POST['title'])),
+                    $url['image']
+                )
             ));
         }
         else
         {
+            $this->logRequest('action', 'IMAGE - UPLOAD_ERROR', 'File Required');
             return $this->error(HTTP_BAD_REQUEST, 'File Required');
         }
+    }
+
+    public function deleteImage()
+    {
+        // User Validation
+        $this->validateUser();
+
+        if(isset($_POST['sId']))
+        {
+            // Image Existence Check
+            $image = MongoDBWrapper::getMongoDBInstance()->image->findOne(array(
+                '_id' => new MongoId($_POST['sId'])
+            ));
+
+            if($image)
+            {
+                if($this->_User->id == $image['owner'])
+                {
+                    // Store Path Calculation
+                    $relativeStorePath = str_replace(':owner', $this->_User->username, STORE_RELATIVE_PATH);
+                    $absolutStorePath = ASSETS_PATH . $relativeStorePath;
+
+                    @unlink(ASSETS_PATH . $image['path']);
+                    foreach($image['thumbs'] as $thumb)
+                    {
+                        @unlink(ASSETS_PATH . $thumb['path']);
+                    }
+
+                    $this->_MongoDBInstance->image->remove(array('_id' => new MongoId($image['_id'])));
+                    $this->logRequest('action', 'IMAGE - DELETED', $image);
+                    return $this->message(200, 'Image Deleted');
+                }
+                else
+                {
+                    $this->logRequest('action', 'IMAGE - DELETE_ERROR', 'Forbidden');
+                    return $this->message(403, 'Forbidden');
+                }
+            }
+        }
+
+        $this->logRequest('action', 'IMAGE - DELETE_ERROR', 'File Required (sId missing)');
+        return $this->error(HTTP_BAD_REQUEST, 'File Required (sId missing)');
     }
 
     public function uploadAsset()
@@ -168,7 +235,7 @@ class API_StaticApiProvider
         // User Validation
         $this->validateUser();
 
-        if(isset($_POST['binary']) && isset($_POST['localId']) && isset($_POST['title']))
+        if(isset($_POST['binary']) && isset($_POST['localId']) && !empty($_POST['localId']) && isset($_POST['title']))
         {
             // Media Type Validation
             $assetMimeType = $this->getBufferMimeType($_POST['binary']);
@@ -192,45 +259,117 @@ class API_StaticApiProvider
             if($assetType === false)
                 throw new Exception($this->error(HTTP_UNSUPPORTED_MEDIA_TYPE, 'Media Type not Supported'));
 
-            // Image Existence Check
-            $asset = MongoDBWrapper::getMongoDBInstance()->image->findOne(array(
-                'owner' => MongoDBRef::create('remoteUser', new MongoId($this->_User['_id']->{'$id'})),
-                'refId' => $_POST['localId'],
-                'type' => $assetType,
-            ));
+            // Asset Existence Check
+            $isUpdate = false;
+            if(isset($_POST['sId']) && !empty($_POST['sId']))
+            {
+                // Update
+                $asset = MongoDBWrapper::getMongoDBInstance()->image->findOne(array(
+                    'owner' =>$this->_User->id,
+                    'refId' => (int)$_POST['localId'],
+                    '_id' => new MongoId($_POST['sId'])
+                ));
+
+                if(!$asset)
+                {
+                    $this->logRequest('action', 'ASSET - UPLOAD_ERROR', 'Inexistent Asset');
+                    return $this->error(HTTP_BAD_REQUEST, 'Inexistent Asset');
+                }
+
+                $isUpdate = true;
+            }
 
             // Store Path Calculation
-            $relativeStorePath = str_replace(':owner', $this->_User['ownerName'], STORE_RELATIVE_PATH);
+            $relativeStorePath = str_replace(':owner', $this->_User->username, STORE_RELATIVE_PATH);
             $absolutStorePath = ASSETS_PATH . $relativeStorePath;
 
-            if($asset)
+            if($isUpdate)
             {
                 @unlink(ASSETS_PATH . $asset['path']);
                 $this->_MongoDBInstance->asset->remove(array('_id' => new MongoId($asset['_id'])));
+                $this->logRequest('action', 'ASSET - DELETED_4_REPLACEMENT', $asset);
             }
 
             $cacheKey = self::getCacheKeyForAsset($assetType, $_POST['localId'], $_POST['title'], $extension);
             $cacheFileName =  FileSystemCache::getInstance()->store($cacheKey, $absolutStorePath , $_POST['binary'], $extension);
-            $this->_MongoDBInstance->asset->insert(array(
-                'owner' => MongoDBRef::create('remoteUser', $this->_User['_id']),
+
+            $mongoAsset = array(
+                'owner' => $this->_User->id,
                 'type' => $assetType,
                 'created' => new MongoDate(),
                 'path' => $relativeStorePath . $cacheFileName,
-                'refId' => $_POST['localId'],
+                'refId' => (int)$_POST['localId'],
                 'mimeType' => $assetMimeType,
                 'fileSize' => filesize($absolutStorePath . $cacheFileName),
+                'titulo' => $_POST['title'],
                 'ext' => $extension,
+            );
+            $this->_MongoDBInstance->asset->insert($mongoAsset, array(
+                'fsync' => true
             ));
 
             if($extension == 'jpg')
                 JPGImageHandler::compressImage($absolutStorePath . $cacheFileName);
 
 
-            return $this->message(200, 'Asset Uploaded');
+            $this->logRequest('action', 'ASSET - UPLOADED', $mongoAsset);
+            $url = ConfigHandler::item('routes');
+            return $this->message(200, 'Asset Uploaded', array(
+                'sId' => $mongoAsset['_id']->{'$id'},
+                'permalink' => str_replace(
+                    array(':type', ':id', ':title', ':ext'),
+                    array($mongoAsset['type'], $mongoAsset['refId'], self::getSEOString($mongoAsset['titulo']), $mongoAsset['ext']),
+                    $url['asset']
+                )
+            ));
         }
         else
         {
+            $this->logRequest('action', 'ASSET - UPLOAD_ERROR', 'File, Id & Title Required');
             return $this->error(HTTP_BAD_REQUEST, 'File, Id & Title Required');
+        }
+    }
+
+    public function deleteAsset()
+    {
+        // User Validation
+        $this->validateUser();
+
+        if(isset($_POST['sId']))
+        {
+            $asset = MongoDBWrapper::getMongoDBInstance()->asset->findOne(array(
+                '_id' => new MongoId($_POST['sId'])
+            ));
+
+            if($asset)
+            {
+                if($this->_User->id == $asset['owner'])
+                {
+                    // Store Path Calculation
+                    $relativeStorePath = str_replace(':owner', $this->_User->username, STORE_RELATIVE_PATH);
+                    $absolutStorePath = ASSETS_PATH . $relativeStorePath;
+
+                    if($asset)
+                    {
+                        $this->_MongoDBInstance->asset->remove(array('_id' => new MongoId($asset['_id'])));
+                        @unlink(ASSETS_PATH . $asset['path']);
+                        $this->logRequest('action', 'ASSET - DELETED', $asset);
+                    }
+
+                    $this->logRequest('action', 'ASSET - DELETED', $asset);
+                    return $this->message(200, 'Image Deleted');
+                }
+                else
+                {
+                    $this->logRequest('action', 'ASSET - DELETE_ERROR', 'Forbidden');
+                    return $this->message(403, 'Forbidden');
+                }
+            }
+        }
+        else
+        {
+            $this->logRequest('action', 'IMAGE - DELETE_ERROR', 'File Required (sId missing)');
+            return $this->error(HTTP_BAD_REQUEST, 'File Required (sId missing)');
         }
     }
 
@@ -257,5 +396,19 @@ class API_StaticApiProvider
         $text = preg_replace("/[^a-zA-Z0-9]+/", $separador, $text);
         $text = trim($text, $separador);
         return strtolower($text);
+    }
+
+    protected function logRequest($type, $action, $desc)
+    {
+        if(ConfigHandler::item($type . 'Log'))
+        {
+            MongoDBWrapper::getMongoDBInstance()->requestLog->insert(array(
+                'date' => new MongoDate(),
+                'request' => $this->_RequestID,
+                'type' => $type,
+                'action' => $action,
+                'desc' => $desc,
+            ), array('w' => 0));
+        }
     }
 }

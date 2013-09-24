@@ -10,10 +10,17 @@ $config = array(
     'supportedMimeTypes' => array(
         'imagen' => array(
             'image/jpeg' => 'jpg',
+            'image/png' => 'png',
+            'image/gif' => 'gif',
         ),
 
         'audio' => array(
             'audio/mpeg' => 'mp3',
+        ),
+
+        'video' => array(
+            'application/x-shockwave-flash' => 'swf',
+            'video/x-flv' => 'flv',
         ),
 
         'documento' => array(
@@ -29,12 +36,16 @@ $config = array(
             'application/vnd.openxmlformats-officedocument.spreadsheetml.template' => 'xltx',
             'application/vnd.openxmlformats-officedocument.wordprocessingml.document' => 'docx',
             'application/vnd.openxmlformats-officedocument.wordprocessingml.template' => 'dotx',
-            'image/jpeg' => 'jpg',
         ),
     ),
 
     'routes' => array(
-        'image' => '/:owner/imagen/[:size/:background|original]/i:id-:title.jpg',
-        'asset' => '/:owner/:type/i:id-:title.:ext',
+//        'image' => '/:owner/imagen/[:size/:background|original]/i:id-:title.jpg',
+        'image' => '/imagen/[:size/:background|original]/i:id-:title.jpg',
+//        'asset' => '/:owner/:type/i:id-:title.:ext',
+        'asset' => '/asset/:type/i:id-:title.:ext',
     ),
+
+    'authLog' => true, // Loggeo de errores de autenticación y checkeos exitosos.
+    'actionLog' => true // Loggeo de acciones
 );
