@@ -39,7 +39,8 @@ class StaticDispatcher
 
     public function loadRoutes()
     {
-        dispatch('^/([a-zA-Z0-9_\-]+)/imagen/((\d+)x(\d+)/(\d{6})/i(\d+)\-([a-zA-Z0-9_\-]+))\.jpg', array($this, 'handleImageRequest'));
+        dispatch('^/([a-zA-Z0-9_\-]+)/imagen/((\d+)x(\d+)/([0-9a-fA-F]{6})/i(\d+)\-([a-zA-Z0-9_\-]+))\.jpg', array($this, 'handleImageRequest'));
+        dispatch('^/([a-zA-Z0-9_\-]+)/imagen/((\d+)x(\d+)/([0-9a-fA-F]{6})/i(\d+)\-([a-zA-Z0-9_\-]+))\.jpg', array($this, 'handleImageRequest'));
         dispatch('^/([a-zA-Z0-9_\-]+)/imagen/(original/i(\d+)\-([a-zA-Z0-9_\-]+))\.jpg$', array($this, 'handleOriginalImageRequest'));
 
         foreach(ConfigHandler::item('supportedMimeTypes') as $type => $formats)
@@ -88,7 +89,7 @@ class StaticDispatcher
                     $cacheFileName = FileSystemCache::getInstance()->store($url, $absolutPath, '<!-- NONE -->');
 
                     JPGImageHandler::saveImageProcessed(
-                        ASSETS_PATH . $image['path'],
+                        ASSETS_PATH . '/' . $image['path'],
                         $cacheFile,
                         ASSETS_PATH . str_replace(':owner', $owner, DEFAULT_IMAGE_PATH),
                         $width,

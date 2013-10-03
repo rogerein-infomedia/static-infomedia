@@ -12,3 +12,6 @@ db.asset.insert({
 });
 db.asset.ensureIndex({"owner": 1, "type": 1, "refId": -1});
 db.asset.remove({});
+
+-- DESPUES DE CORRER LA MIGRACION
+db.image.ensureIndex({"thumb.path": 1});

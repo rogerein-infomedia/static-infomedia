@@ -6,10 +6,11 @@
     <defaultImage>default.jpg</defaultImage>
     <assetsFolder>el-federal</assetsFolder>
     <sizes>
-        <size>686x343</size>
-        <size>334x167</size>
-        <size>238x119</size>
-        <size>467x234</size>
-        <size>201x101</size>
+        <size>1200x526</size>
+        <size>686x301</size>
+        <!--<size>334x167</size>-->
+        <!--<size>238x119</size>-->
+        <!--<size>467x234</size>-->
+        <!--<size>201x101</size>-->
     </sizes>
 </site>
