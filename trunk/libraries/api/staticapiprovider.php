@@ -125,7 +125,7 @@ class API_StaticApiProvider
             // Image Existence Check
             $image = MongoDBWrapper::getMongoDBInstance()->image->findOne(array(
                 'owner' => $this->_User->id,
-                'refId' => $_POST['localId'],
+                'refId' => (int)$_POST['localId'],
             ));
 
             // Store Path Calculation
@@ -138,7 +138,7 @@ class API_StaticApiProvider
                 @unlink(ASSETS_PATH . $image['path']);
                 foreach($image['thumbs'] as $thumb)
                 {
-                    @unlink(ASSETS_PATH . $thumb['path']);
+                    @unlink(ASSETS_PATH . '/' . $thumb['path']);
                 }
 
                 $this->logRequest('action', 'IMAGE - DELETED_4_REPLACEMENT', $image);

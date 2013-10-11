@@ -77,6 +77,7 @@ class StaticDispatcher
         }
         else
         {
+
             if(($remoteUser = Config_OwnerConfig::load($owner)))
             {
                 $image = MongoDBWrapper::getMongoDBInstance()->image->findOne(array(
@@ -84,7 +85,7 @@ class StaticDispatcher
                     'refId' => (int)$remoteId
                 ));
 
-                if($image)
+                if($image && $this->allowedSize($width, $height, $remoteUser))
                 {
                     $cacheFileName = FileSystemCache::getInstance()->store($url, $absolutPath, '<!-- NONE -->');
 
@@ -153,5 +154,10 @@ class StaticDispatcher
         {
             $this->assetNotFound();
         }
+    }
+
+    protected function allowedSize($width, $height, Config_OwnerConfig $config)
+    {
+        return in_array("{$width}x{$height}", $config->sizes);
     }
 }

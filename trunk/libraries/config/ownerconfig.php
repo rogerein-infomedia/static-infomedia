@@ -17,22 +17,35 @@ class Config_OwnerConfig
      */
     public static function load($username)
     {
-        $xml = simplexml_load_file('../config/' . $username . '.xml');
-
-        if($xml)
+        $KEY = $username . '_OwnerConfig';
+        $isProduction = ConfigHandler::item('env') == ENV_PRODUCTION;
+        if($isProduction && ($object = apc_fetch($KEY)))
         {
-            $object = new self;
-            $object->id = (int)((string)$xml->id);
-            $object->username = $username;
+            return unserialize($object);
+        }
+        else
+        {
+            $xml = simplexml_load_file('../config/' . $username . '.xml');
 
-            $algorithm = (string)$xml->password->attributes()->algorithm;
-            $object->password = call_user_func($algorithm, (string)$xml->password);
+            if($xml)
+            {
+                $object = new self;
+                $object->id = (int)((string)$xml->id);
+                $object->username = $username;
 
-            $object->defaultImage = (string)$xml->defaultImage;
-            $object->asssetsFolder = (string)$xml->asssetsFolder;
-            $object->sizes = array_pop(array_values((array)$xml->sizes));
+                $algorithm = (string)$xml->password->attributes()->algorithm;
+                $object->password = call_user_func($algorithm, (string)$xml->password);
 
-            return $object;
+                $object->defaultImage = (string)$xml->defaultImage;
+                $object->asssetsFolder = (string)$xml->asssetsFolder;
+
+                $sizes = (array)$xml->sizes;
+                $object->sizes = $sizes['size'];
+
+                if($isProduction)
+                    apc_store($KEY, serialize($object), 3600 * 24);
+                return $object;
+            }
         }
 
         return false;
