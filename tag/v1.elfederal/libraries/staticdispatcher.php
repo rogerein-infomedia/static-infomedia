@@ -85,9 +85,9 @@ class StaticDispatcher
                     'refId' => (int)$remoteId
                 ));
 
-
                 if($image && $this->allowedSize($width, $height, $remoteUser))
                 {
+
                     $cacheFileName = FileSystemCache::getInstance()->store($url, $absolutPath, '<!-- NONE -->');
 
                     JPGImageHandler::saveImageProcessed(
@@ -99,6 +99,7 @@ class StaticDispatcher
                         $background
                     );
 
+
                     MongoDBWrapper::getMongoDBInstance()->image->update(
                         array('_id' => $image['_id']),
                         array('$addToSet' => array(
@@ -109,7 +110,6 @@ class StaticDispatcher
                         ));
 
                     JPGImageHandler::outputImage($cacheFile);
-                    exit;
                 }
             }
 

@@ -22,8 +22,8 @@ class FileSystemCache
         $cachePath = $this->getCachePath($key, true, $ext);
         $fullCachePath =  str_replace('\\', '/', rtrim($basepath, '/')). $cachePath;
 
-        if(!file_exists(dirname($fullCachePath)))
-            mkdir(dirname($fullCachePath), 0777, true);
+	if(!file_exists(dirname($fullCachePath)))
+		mkdir(dirname($fullCachePath), 0777, true);
 
         file_put_contents($fullCachePath, $value);
 

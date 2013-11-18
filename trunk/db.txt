@@ -1,9 +1,9 @@
-db.imagen.insert({
+db.image.insert({
     "owner": "0",
     "refId": 2121
 });
-db.imagen.ensureIndex({"owner": 1, "refId": -1});
-db.imagen.remove({});
+db.image.ensureIndex({"owner": 1, "refId": -1});
+db.image.remove({});
 
 db.asset.insert({
     "owner": "0",
@@ -13,5 +13,4 @@ db.asset.insert({
 db.asset.ensureIndex({"owner": 1, "type": 1, "refId": -1});
 db.asset.remove({});
 
--- DESPUES DE CORRER LA MIGRACION
 db.image.ensureIndex({"thumb.path": 1});

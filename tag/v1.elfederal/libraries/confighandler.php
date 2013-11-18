@@ -21,6 +21,7 @@ class ConfigHandler
             self::$_Config = apc_fetch('STATIC_ASSETS_CONFIG');
         }
 
+
         if(self::$_Config == false || is_null(self::$_Config))
         {
             include CONFIG_PATH . '/config.php';

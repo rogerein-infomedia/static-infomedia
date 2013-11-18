@@ -1,5 +1,5 @@
 <?php
-define('IS_PRODUCTION', true);
+define('IS_PRODUCTION', false);
 chdir('..');
 require_once '../libraries/loader.php';
 

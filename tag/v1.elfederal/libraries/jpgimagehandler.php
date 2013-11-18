@@ -3,16 +3,9 @@ class JPGImageHandler
 {
     public static function compressImage($src)
     {
-        if(preg_match('/^win/i', PHP_OS))
-        {
-            // WINDOWS
-            shell_exec('jpegtran -copy none -progressive "' . $src . '" "' . $src . '"');
-        }
-        elseif(preg_match('/^linux/i', PHP_OS))
-        {
-            // LINUX
-            shell_exec('jpegtran -copy none -progressive "' . $src . '" > "' . $src . '-out" && mv -f ' . $src . '-out ' . $src);
-        }
+//        shell_exec('jpegtran -copy none -progressive "' . $src . '" > "' . $src . '"');
+	shell_exec('jpegtran -copy none -progressive "' . $src . '" > "' . $src . '-out" && mv -f ' . $src . '-out ' . $src);
+
     }
 
     public static function saveImageProcessed($srcImage, $dstImage, $defaultImage, $width, $height, $backgroundColor)

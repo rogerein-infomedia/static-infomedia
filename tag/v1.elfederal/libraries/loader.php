@@ -18,6 +18,7 @@ if (!apc_load_constants($key, true) || !IS_PRODUCTION)
         'CACHE_STORE_RELATIVE_PATH'  => '/:owner/cache',
         'DEFAULT_IMAGE_PATH'         => '/:owner/default.jpg',
     ), true);
+
 }
 
 require_once ROOT_PATH . '/limonade.php';
